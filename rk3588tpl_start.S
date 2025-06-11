@@ -7,14 +7,14 @@
 .global  _start
 _start:
 
-	b save_boot_params
+	//b save_boot_params
 	.global	save_boot_params_ret
 	save_boot_params_ret:
 
 	//ldr	x0, =24000000           //24MHz
 	//msr	cntfrq_el0, x0			//Initialize crystal oscillator
 
-	bl clean_bss
+	//bl clean_bss
 clean_bss_complete:
 
 	b tpl_main

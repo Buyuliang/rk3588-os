@@ -3,7 +3,7 @@ SECTIONS {
 	. = ALIGN(8);
     .text : 
 	{ 
-		rk3588tpl_start.o(.text)
+		start.o(.text)
 		*(.text) 
 	}
     .rodata ALIGN(8) : {*(.rodata*)} 

@@ -1,6 +1,7 @@
 #define Use_Printf
 
 #include "rk3588_common.h"
+#include "ioc_rk3588.h"
 #ifdef Use_Printf
 	#include "stdarg.h"
 	#define  MAX_NUMBER_BYTES  64
@@ -31,6 +32,26 @@ void printascii(const char *str);
 u32 boot_mode, boot_dvid;
 u32 bootrom_action;
 
+#define SYS_GRF					0xFD58C000
+// #define SYS_GRF					0xFDC60000
+#define 	GRF_IOFUNC_SEL3		0x030C
+
+#define PMU_GRF					0xFD588000
+// #define PMU_GRF					0xfdc20000
+
+
+#define PMU2_IOC									0xFD5F4000
+#define PMU2_IOC_GPIO0B_IOMUX_SEL_H					0x0
+
+#define BUS_IOC										0xFD5F8000
+#define BUS_IOC_GPIO0B_IOMUX_SEL_H					0xC
+
+
+#define 	GRF_GPIO0D_IOMUX_L	0x0018
+
+#define CONFIG_DEBUG_UART_BASE 0xfeb50000
+#define CONFIG_DEBUG_UART_CLOCK 24000000
+#define CONFIG_BAUDRATE 1500000
 
 /*************************************************/
 
@@ -75,39 +96,84 @@ void back_to_bootrom(int exitCode)
 
 void uart_init()
 {
-#define SYS_GRF					0xFD58C000
-// #define SYS_GRF					0xFDC60000
-#define 	GRF_IOFUNC_SEL3		0x030C
 
-#define PMU_GRF					0xfdc20000
-#define 	GRF_GPIO0D_IOMUX_L	0x0018
-
-#define CONFIG_DEBUG_UART_BASE 0xFE660000
-#define CONFIG_DEBUG_UART_CLOCK 24000000
-#define CONFIG_BAUDRATE 1500000
-
-	// IOMUX 配置，将UART2对应的GPIO引脚选用为 uart2 mux0 功能
-	//*((u32 *)(SYS_GRF + GRF_IOFUNC_SEL3))		= 0x0C000000;
-	rk_clrsetreg(SYS_GRF + GRF_IOFUNC_SEL3, 0x0C00, 0x0000);
+	// // IOMUX 配置，将UART2对应的GPIO引脚选用为 uart2 mux0 功能
+	// //*((u32 *)(SYS_GRF + GRF_IOFUNC_SEL3))		= 0x0C000000;
+	// rk_clrsetreg(PMU2_IOC + PMU2_IOC_GPIO0B_IOMUX_SEL_H, 0x0880, 0x0880);
 	
-	// GPIO0_D0 做 uart2 mux0 的 rx 线， GPIO0_D1 做 uart2 mux0 的 tx 线
-	//*((u32 *)(PMU_GRF + GRF_GPIO0D_IOMUX_L))	= 0x00770011;
-	rk_clrsetreg(PMU_GRF + GRF_GPIO0D_IOMUX_L, 0x0077, 0x0011);
+	// // GPIO0_D0 做 uart2 mux0 的 rx 线， GPIO0_D1 做 uart2 mux0 的 tx 线
+	// //*((u32 *)(PMU_GRF + GRF_GPIO0D_IOMUX_L))	= 0x00770011;
+	// rk_clrsetreg(BUS_IOC + BUS_IOC_GPIO0B_IOMUX_SEL_H, 0x0aa0, 0x0aa0);
+
+/*
+ * Create a contiguous bitmask starting at bit position @l and ending at
+ * position @h. For example
+ * GENMASK_ULL(39, 21) gives us the 64bit vector 0x000000ffffe00000.
+ */
+#define GENMASK(h, l) \
+	(((~0UL) << (l)) & (~0UL >> (BITS_PER_LONG - 1 - (h))))
+
+#define GENMASK_ULL(h, l) \
+	(((~0ULL) << (l)) & (~0ULL >> (BITS_PER_LONG_LONG - 1 - (h))))
+
+	/* GPIO0B_IOMUX_SEL_H */
+	enum {
+		GPIO0B5_SHIFT		= 4,
+		GPIO0B5_MASK		= GENMASK(7, 4),
+		GPIO0B5_REFER		= 8,
+		GPIO0B5_UART2_TX_M0	= 10,
+
+		GPIO0B6_SHIFT		= 8,
+		GPIO0B6_MASK		= GENMASK(11, 8),
+		GPIO0B6_REFER		= 8,
+		GPIO0B6_UART2_RX_M0	= 10,
+	};
+	static struct rk3588_bus_ioc * const bus_ioc = (void *)BUS_IOC;
+	static struct rk3588_pmu2_ioc * const pmu2_ioc = (void *)PMU2_IOC;
+
+	/* Refer to BUS_IOC */
+	// rk_clrsetreg(&pmu2_ioc->gpio0b_iomux_sel_h,
+	// 		GPIO0B6_MASK | GPIO0B5_MASK,
+	// 		GPIO0B6_REFER << GPIO0B6_SHIFT |
+	// 		GPIO0B5_REFER << GPIO0B5_SHIFT);
+
+	// /* UART2_M0 Switch iomux */
+	// rk_clrsetreg(&bus_ioc->gpio0b_iomux_sel_h,
+	// 		GPIO0B6_MASK | GPIO0B5_MASK,
+	// 		GPIO0B6_UART2_RX_M0 << GPIO0B6_SHIFT |
+	// 		GPIO0B5_UART2_TX_M0 << GPIO0B5_SHIFT);
 
 	// 时钟频率与波特率换算？？
-	int baud_divisor = DIV_ROUND_CLOSEST(CONFIG_DEBUG_UART_CLOCK, 16 * CONFIG_BAUDRATE);
+	// int baud_divisor = DIV_ROUND_CLOSEST(CONFIG_DEBUG_UART_CLOCK, 16 * CONFIG_BAUDRATE);
 	
 	
-	struct NS16550 *com_port = (struct NS16550 *)CONFIG_DEBUG_UART_BASE;
-	serial_dout(&com_port->ier, (1 << 6));
-	serial_dout(&com_port->mcr, 0x03);
-	serial_dout(&com_port->fcr, 0x07);
+	// struct NS16550 *com_port = (struct NS16550 *)CONFIG_DEBUG_UART_BASE;
+	// serial_dout(&com_port->ier, (1 << 6));
+	// serial_dout(&com_port->mcr, 0x03);
+	// serial_dout(&com_port->fcr, 0x07);
 
-	serial_dout(&com_port->lcr, 0x80 | 0x03);
-	serial_dout(&com_port->dll, baud_divisor & 0xff);
-	serial_dout(&com_port->dlm, (baud_divisor >> 8) & 0xff);
-	serial_dout(&com_port->lcr, 0x03);
+	// serial_dout(&com_port->lcr, 0x80 | 0x03);
+	// serial_dout(&com_port->dll, baud_divisor & 0xff);
+	// serial_dout(&com_port->dlm, (baud_divisor >> 8) & 0xff);
+	// serial_dout(&com_port->lcr, 0x03);
 
+
+
+	// struct NS16550 *com_port = (struct NS16550 *)CONFIG_DEBUG_UART_BASE;
+	// int baud_divisor;
+
+	// baud_divisor = ns16550_calc_divisor(com_port, CONFIG_DEBUG_UART_CLOCK,
+	// 				    CONFIG_BAUDRATE);
+	// serial_dout(&com_port->ier, CONFIG_SYS_NS16550_IER);
+	// serial_dout(&com_port->mdr1, 0x7);
+	// serial_dout(&com_port->mcr, UART_MCRVAL);
+	// serial_dout(&com_port->fcr, UART_FCR_DEFVAL);
+
+	// serial_dout(&com_port->lcr, UART_LCR_BKSE | UART_LCRVAL);
+	// serial_dout(&com_port->dll, baud_divisor & 0xff);
+	// serial_dout(&com_port->dlm, (baud_divisor >> 8) & 0xff);
+	// serial_dout(&com_port->lcr, UART_LCRVAL);
+	// serial_dout(&com_port->mdr1, 0x0);
 }
 
 static void putc(int ch)
