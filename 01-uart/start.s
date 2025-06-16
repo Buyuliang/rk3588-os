@@ -7,8 +7,8 @@ BootromContex:
 
     // 定义字符串常量
     tom_os_str: .asciz "TOM OS\r\n"
-    separator_str: .asciz "=================\r\n\0"
-    boot_info_str: .asciz "Booting TOM OS v1.0 \r\n\0"
+    separator_str: .asciz "=================\r\n"
+    boot_info_str: .asciz "Booting TOM OS v1.0 \r\n"
     error_str: .asciz "ERROR: "
 
 .section .text
