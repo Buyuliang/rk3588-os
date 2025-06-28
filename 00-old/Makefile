@@ -22,4 +22,4 @@ rk3588tpl : rk3588tpl_start.S  main.c
 	#/mnt/e/Dev/EE/Rockchip/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-objdump -D -b binary -m aarch64 bootrom.bin > out.dis
 
 clean:
-	rm -f out.dis  tpl.bin out_elf  *.o *.bin
+	rm -f out.dis  tpl.bin out_elf  *.o *.bin *.img
