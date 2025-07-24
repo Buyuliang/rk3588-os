@@ -34,6 +34,7 @@ if [ ! -f "$DIST_DIR/spl.bin" ]; then
 fi
 
 # 生成 idbloader.img
+echo $(pwd)
 ${PROJECT_ROOT}/mkimage -n rk3588 -T rksd -d \
     "$TOOLS_DIR/rk3588_ddr_lp4_2112MHz_lp5_2400MHz_v1.16.bin":"$DIST_DIR/spl.bin" \
     "$DIST_DIR/idbloader.img"
