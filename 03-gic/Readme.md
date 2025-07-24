@@ -120,3 +120,54 @@ KEEP(*(.text._start))
 | .bss 段    | 存放未初始化的全局变量，放入 data 加载段 |
 | KEEP()     | 防止重要代码被优化器删除       |
 | ALIGN(8)   | 内存地址对齐，满足架构要求     |
+
+
+注：
+| 寄存器名     | 全称                       | 作用描述                                                                 | 常用位说明（位号）                                                                                                                                     |
+|--------------|----------------------------|--------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| VBAR_EL3     | Vector Base Address Register (EL3) | 设置异常向量表的基地址（用于 EL3 异常处理）                                       | 无具体位；整个寄存器用于存储异常向量表的地址。                                                                                                        |
+| SCR_EL3      | Secure Configuration Register (EL3) | 配置 EL3 的安全状态、异常路由和执行状态等。                                                | - RW（位10）：设置异常返回的下一个 EL 是 AArch64（1）还是 AArch32（0）  <br> - EA（位3）：SError 是否路由到 EL3 <br> - FIQ（位2）：FIQ 路由到 EL3 <br> - IRQ（位1）：IRQ 路由到 EL3 <br> - NS（位0）：表示当前是否处于 Non-secure 状态 |
+| CPTR_EL3     | Architectural Feature Trap Register (EL3) | 控制是否屏蔽对 SIMD/FP 寄存器的访问，通常设置为 0 表示不屏蔽。                              | - TCPAC（位31）：屏蔽 EL1/EL0 对浮点/高级SIMD寄存器的访问 <br> - TFP（位10）：屏蔽 EL1/EL0/EL2 对浮点/高级SIMD 的访问（通常设置为0启用）                                   |
+| CNTFRQ_EL0   | Counter-timer Frequency register | 设置物理计数器的频率（通常是 SoC 的晶振频率）                                         | 整个寄存器是一个 32 位无符号值，表示每秒计数的频率，例如设置为 24000000 表示 24MHz                                                             |
+
+
+
+#### CNTPS_CVAL_EL1 
+
+CNTPS_CVAL_EL1 是 ARMv8 架构中 EL1 Exception Level 下，用于 Secure Physical Timer 的一个比较值（Compare Value）寄存器。它与 Secure Physical Timer 一起工作，用于定时中断的产生。
+
+| 寄存器名         | CNTPS_CVAL_EL1 |
+|------------------|----------------|
+| 全称             | Counter-timer Physical Secure CompareValue register (EL1) |
+| 作用             | 设置 Secure Physical Timer 触发中断的目标计数值 |
+| 位数             | 64-bit |
+| 使用模式         | EL1，Secure 状态可访问 |
+| 关联寄存器       | CNTPS_CTL_EL1（控制），CNTPS_TVAL_EL1（偏移量） |
+| 典型用途         | 配置 Secure Timer 在特定时间点产生中断 |
+| 读取/写入指令示例 | `MRS X0, CNTPS_CVAL_EL1` / `MSR CNTPS_CVAL_EL1, X0` |
+
+#### CNTPS_CTL_EL1
+
+| 位段      | 名称        | 描述                                    |
+| ------- | --------- | ------------------------------------- |
+| \[0]    | `ENABLE`  | 设置为 1 启用 Secure EL1 定时器；设置为 0 禁用该定时器。 |
+| \[1]    | `IMASK`   | 中断屏蔽位。<br>1：屏蔽定时器中断；<br>0：使能中断。       |
+| \[2]    | `ISTATUS` | 中断状态位（只读）。<br>1：事件已经发生；<br>0：事件未发生。   |
+| \[31:3] | —         | 保留，读取时为 0，写入时应忽略。                     |
+
+
+#### GICv3 配置流程表格
+| 步骤 | 模块              | 寄存器/接口                                | 描述                                      |
+| -- | --------------- | ------------------------------------- | --------------------------------------- |
+| 1  | 系统控制器           | SCR\_EL3                              | 设置 HCE/SMD/NS，允许 EL1/EL2 访问 GIC（启用中断管理） |
+| 2  | CPU 接口（GICR）    | GICR\_CTLR                            | 启用 Redistributor，确保每个核心的中断分发器处于就绪状态     |
+| 3  | CPU 接口（GICR）    | GICR\_TYPER                           | 获取当前 CPU 的 GICR 范围和中断范围                 |
+| 4  | GIC Distributor | GICD\_CTLR                            | 启用 Distributor，全局使能中断分发                 |
+| 5  | GIC Distributor | GICD\_IGROUPRn / GICD\_ISENABLERn     | 配置中断为 Group0 或 Group1，设置哪些中断使能          |
+| 6  | GIC Distributor | GICD\_IPRIORITYRn                     | 设置中断优先级（8-bit）                          |
+| 7  | GIC Distributor | GICD\_ITARGETSRn / GICR\_TYPER        | 配置目标 CPU，或 LPIs 目标 Redistributor        |
+| 8  | Redistributor   | GICR\_ISENABLER0 等                    | 启用 SGIs 和 PPIs（每核本地中断）                  |
+| 9  | CPU 接口系统寄存器     | ICC\_PMR\_EL1                         | 设置中断优先级掩码                               |
+| 10 | CPU 接口系统寄存器     | ICC\_IGRPEN1\_EL1 / ICC\_IGRPEN0\_EL1 | 启用 Group0 和 Group1 中断处理                 |
+| 11 | CPU 接口系统寄存器     | ICC\_BPR0\_EL1 / ICC\_BPR1\_EL1       | 配置中断优先级分组                               |
+| 12 | 处理器中断处理流程       | ICC\_IAR1\_EL1 / ICC\_EOIR1\_EL1      | 获取中断 ID，完成后写入 EOI                       |
